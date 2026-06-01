@@ -1,7 +1,7 @@
 // ==========================================
 // SUPABASE DATABASE INITIALIZATION
 // ==========================================
-const SUPABASE_URL = 'https://mxdplsijbisozgzamugg.supabase.co'; 
+const SUPABASE_URL = 'sb_publishable_PaalaIFy_tKZWqrr6rX1zg_BtvG4fzV'; 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14ZHBsc2lqYmlzb3pnemFtdWdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMjU3NDIsImV4cCI6MjA5NTkwMTc0Mn0.25HVUu80WkEoqfPdYkIUeE_wjg4o3Aa3JOWEzuDQDEE';
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
