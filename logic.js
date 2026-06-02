@@ -171,6 +171,7 @@ function setAttendanceStatus(studentId, status) {
     }
 }
 
+// Added safety parsing to prevent NaN display when fields are empty string values
 function calculateRowTotal(gradeObj) {
     return (Number(gradeObj.attendance) || 0) + 
            (Number(gradeObj.assignment) || 0) + 
@@ -424,7 +425,6 @@ document.getElementById('admin-add-user-form').addEventListener('submit', async 
 async function deleteUser(userId) {
     if (confirm(`Are you sure you want to permanently delete user [${userId}]?`)) {
         await supabase.from('users').delete().eq('id', userId);
-        // Cascade structural cleanups across referencing grade tables
         await supabase.from('grades').delete().eq('student_id', userId);
         await supabase.from('attendance_logs').delete().eq('student_id', userId);
         
