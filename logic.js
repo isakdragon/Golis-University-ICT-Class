@@ -325,24 +325,23 @@ function calculateGPAValue(score) {
 }
 
 // ==========================================
-// ADMIN ENGINE CONTROLS & AUTHORITY PORTAL
+// ADMIN ENGINE CONTROLS & AUTHORITY PORTAL (SECURED VIA RPC)
 // ==========================================
 document.getElementById('reset-db-btn').addEventListener('click', async function() {
     if (confirm("Are you sure you want to reset the database back to default demo records?")) {
-        // Erase table rows
-        await supabase.from('users').delete().neq('id', '');
-        await supabase.from('grades').delete().neq('id', 0);
-        await supabase.from('attendance_logs').delete().neq('id', 0);
+        
+        // Execute reset procedure through secure backend RPC call
+        const { error } = await supabase.rpc('secure_admin_reset_db', {
+            admin_id: currentUser.id,
+            admin_pass: currentUser.password
+        });
 
-        // Re-inject pristine starter schema configuration elements
-        await supabase.from('users').insert([
-            { id: "admin", password: "admin123", role: "admin", name: "System Admin" },
-            { id: "teacher1", password: "teacher123", role: "teacher", name: "Dr. Sarah Ahmed", course_id: "CS101", course_name: "Computer Science" },
-            { id: "student1", password: "student123", role: "student", name: "Isaac Mohamed" }
-        ]);
-
-        alert("Cloud Database successfully wiped and reset to default data items.");
-        location.reload();
+        if (error) {
+            alert("Error resetting database: " + error.message);
+        } else {
+            alert("Cloud Database successfully wiped and reset to default data items.");
+            location.reload();
+        }
     }
 });
 
@@ -401,14 +400,20 @@ document.getElementById('admin-add-user-form').addEventListener('submit', async 
         return;
     }
 
-    const newUser = { id, password, role, name };
+    const cid = role === 'teacher' ? (document.getElementById('new-user-cid').value.trim() || "GEN101") : null;
+    const cname = role === 'teacher' ? (document.getElementById('new-user-cname').value.trim() || "General Course") : null;
 
-    if (role === 'teacher') {
-        newUser.course_id = document.getElementById('new-user-cid').value.trim() || "GEN101";
-        newUser.course_name = document.getElementById('new-user-cname').value.trim() || "General Course";
-    }
-
-    const { error } = await supabase.from('users').insert([newUser]);
+    // Send the execution context to the secure database RPC pipeline
+    const { error } = await supabase.rpc('secure_admin_add_user', {
+        admin_id: currentUser.id,
+        admin_pass: currentUser.password,
+        new_id: id,
+        new_name: name,
+        new_pass: password,
+        new_role: role,
+        new_cid: cid,
+        new_cname: cname
+    });
 
     if (error) {
         alert("Error creating record: " + error.message);
@@ -424,12 +429,20 @@ document.getElementById('admin-add-user-form').addEventListener('submit', async 
 
 async function deleteUser(userId) {
     if (confirm(`Are you sure you want to permanently delete user [${userId}]?`)) {
-        await supabase.from('users').delete().eq('id', userId);
-        await supabase.from('grades').delete().eq('student_id', userId);
-        await supabase.from('attendance_logs').delete().eq('student_id', userId);
         
-        await initAdminViews();
-        alert("User completely removed from system database storage.");
+        // Execute deletions via secure RPC function wrapper context
+        const { error } = await supabase.rpc('secure_admin_delete_user', {
+            admin_id: currentUser.id,
+            admin_pass: currentUser.password,
+            target_user_id: userId
+        });
+
+        if (error) {
+            alert("Error deleting user: " + error.message);
+        } else {
+            await initAdminViews();
+            alert("User completely removed from system database storage.");
+        }
     }
 }
 
