@@ -40,7 +40,6 @@ body {
     display: none !important;
 }
 
-/* Login Layout */
 #login-container {
     max-width: 400px;
     margin-top: 100px;
@@ -82,7 +81,6 @@ input:focus, select:focus {
     outline: 2px solid var(--primary-color);
 }
 
-/* Buttons */
 .btn {
     padding: 10px 16px;
     border: none;
@@ -116,7 +114,6 @@ input:focus, select:focus {
     color: white;
 }
 
-/* Dashboard Layout */
 #app-container {
     width: 100%;
     max-width: 1100px;
@@ -143,7 +140,6 @@ header {
     margin-top: 4px;
 }
 
-/* Tabs */
 .tabs {
     margin: 20px 0;
 }
@@ -164,13 +160,12 @@ header {
     border-bottom-color: var(--primary-color);
 }
 
-/* Tables */
 .data-table {
     width: 100%;
     border-collapse: collapse;
     margin: 15px 0;
     background: white;
-    min-width: 600px; /* Ensures table doesn't squish too much before scrolling */
+    min-width: 600px; 
 }
 
 .data-table th, .data-table td {
@@ -189,7 +184,6 @@ header {
     padding: 4px;
 }
 
-/* Student GPA Display */
 .gpa-container {
     display: flex;
     justify-content: center;
@@ -215,7 +209,6 @@ header {
     border-left: 4px solid var(--primary-color);
 }
 
-/* Desktop Admin Form Layouts (Moved from inline HTML) */
 .admin-form {
     margin-bottom: 20px; 
     display: flex; 
@@ -232,18 +225,12 @@ header {
     gap: 10px;
 }
 
-/* ==========================================
-   RESPONSIVE DESIGN ADDITIONS
-   ========================================== */
-
-/* 1. Table Wrapper for Horizontal Scrolling */
 .table-responsive {
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
 }
 
-/* 2. Mobile Media Queries */
 @media (max-width: 768px) {
     body {
         padding: 10px;
@@ -269,7 +256,6 @@ header {
         width: 100%;
     }
 
-    /* Stack Admin form nicely */
     .admin-form {
         flex-direction: column;
         align-items: stretch;
@@ -284,7 +270,6 @@ header {
         margin-top: 10px;
     }
 
-    /* Adjust Tabs for mobile */
     .tabs {
         display: flex;
         flex-direction: column;
