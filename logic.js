@@ -1,6 +1,3 @@
-// ==========================================
-// SUPABASE DATABASE INITIALIZATION (ES Module)
-// ==========================================
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://mxdplsijbisozgzamugg.supabase.co'; 
@@ -11,9 +8,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let currentAttendanceState = {}; 
 
-// ==========================================
-// AUTHENTICATION ENGINE
-// ==========================================
 document.getElementById('login-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const idInput = document.getElementById('username').value.trim();
@@ -99,9 +93,6 @@ async function setupDashboardView() {
     }
 }
 
-// ==========================================
-// TEACHER CONTROLLER: ATTENDANCE & GRADES
-// ==========================================
 function switchTeacherTab(tabId, eventObject = null) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -213,9 +204,6 @@ function updateGradeTotalDisplay(inputElement) {
     if (label) label.textContent = total;
 }
 
-// ==========================================
-// TEACHER SECURE RPC SAVES
-// ==========================================
 document.getElementById('save-attendance-btn').addEventListener('click', async function() {
     const dateSelected = document.getElementById('attendance-date').value;
     const selectedSemester = parseInt(document.getElementById('teacher-semester-select').value) || 4;
@@ -225,7 +213,6 @@ document.getElementById('save-attendance-btn').addEventListener('click', async f
         return;
     }
 
-    // Bundle all attendance status selections into an array
     const newLogs = [];
     for (let studentId in currentAttendanceState) {
         newLogs.push({
@@ -234,7 +221,6 @@ document.getElementById('save-attendance-btn').addEventListener('click', async f
         });
     }
 
-    // Call the secure backend function
     const { error } = await supabase.rpc('secure_teacher_save_attendance', {
         teacher_id: currentUser.id,
         teacher_pass: currentUser.password,
@@ -255,7 +241,6 @@ document.getElementById('save-grades-btn').addEventListener('click', async funct
     const selectedSemester = parseInt(document.getElementById('teacher-semester-select').value) || 4;
     const studentIds = Array.from(new Set(Array.from(document.querySelectorAll('.grade-input')).map(i => i.getAttribute('data-sid'))));
     
-    // Bundle all grades into an array
     const gradesArray = [];
     for (const studentId of studentIds) {
         const rowInputs = document.querySelectorAll(`.grade-input[data-sid="${studentId}"]`);
@@ -268,7 +253,6 @@ document.getElementById('save-grades-btn').addEventListener('click', async funct
         gradesArray.push(gradeObj);
     }
 
-    // Call the secure backend function
     const { error } = await supabase.rpc('secure_teacher_save_grades', {
         teacher_id: currentUser.id,
         teacher_pass: currentUser.password,
@@ -285,9 +269,6 @@ document.getElementById('save-grades-btn').addEventListener('click', async funct
     }
 });
 
-// ==========================================
-// STUDENT CONTROLLER: GPA & RECORDS
-// ==========================================
 async function initStudentViews() {
     const studentReportBody = document.getElementById('student-report-body');
     if (!studentReportBody) return;
@@ -342,9 +323,6 @@ function calculateGPAValue(score) {
     return 0.00;
 }
 
-// ==========================================
-// ADMIN ENGINE CONTROLS & AUTHORITY PORTAL (SECURED VIA RPC)
-// ==========================================
 document.getElementById('reset-db-btn').addEventListener('click', async function() {
     if (confirm("Are you sure you want to reset the database back to default demo records?")) {
         const { error } = await supabase.rpc('secure_admin_reset_db', {
@@ -460,9 +438,6 @@ async function deleteUser(userId) {
     }
 }
 
-// ==========================================
-// ES MODULE GLOBAL WINDOW CONTEXT BINDINGS
-// ==========================================
 window.toggleAdminCourseFields = toggleAdminCourseFields;
 window.deleteUser = deleteUser;
 window.setAttendanceStatus = setAttendanceStatus;
