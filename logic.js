@@ -55,24 +55,58 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 });
 
 // ==========================================
-// VIEW ROUTING CONTROLLER
+// VIEW ROUTING CONTROLLER (WITH CASE-INSENSITIVE SAFETY)
 // ==========================================
 async function setupDashboardView() {
-    document.querySelectorAll('.dashboard-view').forEach(view => view.classList.add('hidden'));
-    
-    document.getElementById('welcome-text').textContent = `Welcome, ${currentUser.name}`;
-    document.getElementById('user-role-badge').textContent = currentUser.role;
+    try {
+        // Hide all dashboard modules initially
+        document.querySelectorAll('.dashboard-view').forEach(view => view.classList.add('hidden'));
+        
+        const welcomeText = document.getElementById('welcome-text');
+        const roleBadge = document.getElementById('user-role-badge');
+        
+        if (welcomeText) welcomeText.textContent = `Welcome, ${currentUser.name}`;
+        if (roleBadge) roleBadge.textContent = currentUser.role;
 
-    if (currentUser.role === 'admin') {
-        document.getElementById('admin-dashboard').classList.remove('hidden');
-        await initAdminViews(); 
-    } else if (currentUser.role === 'teacher') {
-        document.getElementById('teacher-dashboard').classList.remove('hidden');
-        document.getElementById('teacher-course-name').textContent = currentUser.course_name || "Unassigned";
-        await initTeacherViews();
-    } else if (currentUser.role === 'student') {
-        document.getElementById('student-dashboard').classList.remove('hidden');
-        await initStudentViews();
+        // Force lowercase conversion to solve 'Teacher' vs 'teacher' database spelling variations
+        const normalizedRole = (currentUser.role || '').toLowerCase().trim();
+
+        if (normalizedRole === 'admin') {
+            const adminDash = document.getElementById('admin-dashboard');
+            if (adminDash) {
+                adminDash.classList.remove('hidden');
+                await initAdminViews(); 
+            } else {
+                alert("HTML Configuration Error: Could not find element id='admin-dashboard' in your layout file.");
+            }
+        } else if (normalizedRole === 'teacher') {
+            const teacherDash = document.getElementById('teacher-dashboard');
+            if (teacherDash) {
+                teacherDash.classList.remove('hidden');
+                
+                const courseNameEl = document.getElementById('teacher-course-name');
+                if (courseNameEl) {
+                    courseNameEl.textContent = currentUser.course_name || "Unassigned";
+                }
+                
+                await initTeacherViews();
+            } else {
+                alert("HTML Configuration Error: Found user role 'teacher', but your HTML file is missing the dashboard section with id='teacher-dashboard'.");
+            }
+        } else if (normalizedRole === 'student') {
+            const studentDash = document.getElementById('student-dashboard');
+            if (studentDash) {
+                studentDash.classList.remove('hidden');
+                await initStudentViews();
+            } else {
+                alert("HTML Configuration Error: Could not find element id='student-dashboard' in your layout file.");
+            }
+        } else {
+            alert(`Access Control Alert: The system verified your account but detected an unmapped role type: "${currentUser.role}"`);
+        }
+    } catch (globalUIAssignmentError) {
+        console.error("Dashboard routing fatal runtime crash:", globalUIAssignmentError);
+        alert("Critical Dashboard Initialization Bug: " + globalUIAssignmentError.message + "\n\nCheck your HTML layout files to verify all expected IDs exist.");
     }
 }
 
@@ -86,7 +120,6 @@ function switchTeacherTab(tabId, eventObject = null) {
     const targetTab = document.getElementById(tabId);
     if (targetTab) targetTab.classList.remove('hidden');
     
-    // Fallback logic context handling for cross-browser module triggers
     const activeEvent = eventObject || window.event;
     if (activeEvent && activeEvent.currentTarget) {
         activeEvent.currentTarget.classList.add('active');
@@ -100,9 +133,8 @@ async function initTeacherViews() {
         const semesterSelect = document.getElementById('teacher-semester-select');
         const attendanceDateInput = document.getElementById('attendance-date');
 
-        // Check if HTML configuration fields are mapped correctly
         if (!attendanceTableBody || !gradesTableBody || !semesterSelect || !attendanceDateInput) {
-            alert("Developer Error: One or more HTML element IDs are missing or mismatched in your DOM file layout structure.");
+            alert("DOM Configuration Mismatch: The Teacher dashboard structural elements (tables or input selectors) are missing from your HTML markup code.");
             return;
         }
         
@@ -120,12 +152,12 @@ async function initTeacherViews() {
             .eq('role', 'student');
 
         if (studentErr) {
-            alert("Database Error fetching students: " + studentErr.message + "\nCheck if RLS SELECT policy is configured for your users table.");
+            alert("Database Connection Restrained: " + studentErr.message + "\n\nMake sure your Supabase Policy allows public reads (SELECT) on the 'users' table.");
             return;
         }
 
         if (!students || students.length === 0) {
-            alert("No student records found in your database directory.");
+            alert("Data Empty: There are no student records stored in your users table database right now.");
             return;
         }
 
@@ -137,13 +169,12 @@ async function initTeacherViews() {
             .eq('semester', selectedSemester);
 
         if (gradesErr) {
-            alert("Database Error fetching grades: " + gradesErr.message + "\nCheck if RLS SELECT policy is configured for your grades table.");
+            alert("Database Connection Restrained: " + gradesErr.message + "\n\nMake sure your Supabase Policy allows public reads (SELECT) on the 'grades' table.");
         }
 
         students.forEach(student => {
             currentAttendanceState[student.id] = 'Present';
 
-            // Build Attendance Row
             const attendanceRow = document.createElement('tr');
             attendanceRow.innerHTML = `
                 <td>${student.id}</td>
@@ -155,14 +186,12 @@ async function initTeacherViews() {
             `;
             attendanceTableBody.appendChild(attendanceRow);
 
-            // Find matching grade matrix record
             const exactGrade = (gradesList && gradesList.find(g => g.student_id === student.id)) || {
                 attendance: 0, assignment: 0, mid_exam: 0, final_exam: 0
             };
 
             const totalScore = calculateRowTotal(exactGrade);
 
-            // Build Grade Management UI Row
             const gradeRow = document.createElement('tr');
             gradeRow.innerHTML = `
                 <td>${student.id}</td>
@@ -177,7 +206,7 @@ async function initTeacherViews() {
         });
     } catch (err) {
         console.error("Runtime view rendering crashed:", err);
-        alert("JavaScript Execution Error: " + err.message);
+        alert("JavaScript Execution Exception inside initTeacherViews(): " + err.message);
     }
 }
 
