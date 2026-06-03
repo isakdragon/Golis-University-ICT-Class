@@ -6,12 +6,10 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const SUPABASE_URL = 'https://mxdplsijbisozgzamugg.supabase.co'; 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14ZHBsc2lqYmlzb3pnemFtdWdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMjU3NDIsImV4cCI6MjA5NTkwMTc0Mn0.25HVUu80WkEoqfPdYkIUeE_wjg4o3Aa3JOWEzuDQDEE';
 
-// Initialize the client scoped locally inside this module context
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Global state tracking runtime authenticated user
 let currentUser = null;
-let currentAttendanceState = {}; // Temporary memory state for active attendance collection
+let currentAttendanceState = {}; 
 
 // ==========================================
 // AUTHENTICATION ENGINE
@@ -24,7 +22,6 @@ document.getElementById('login-form').addEventListener('submit', async function(
 
     errorDisplay.textContent = "Connecting to secure database...";
 
-    // Fetch matching user row from Supabase Cloud
     const { data: user, error } = await supabase
         .from('users')
         .select('*')
@@ -61,7 +58,6 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 // VIEW ROUTING CONTROLLER
 // ==========================================
 async function setupDashboardView() {
-    // Hide all dashboard modules initially
     document.querySelectorAll('.dashboard-view').forEach(view => view.classList.add('hidden'));
     
     document.getElementById('welcome-text').textContent = `Welcome, ${currentUser.name}`;
@@ -83,78 +79,106 @@ async function setupDashboardView() {
 // ==========================================
 // TEACHER CONTROLLER: ATTENDANCE & GRADES
 // ==========================================
-function switchTeacherTab(tabId) {
+function switchTeacherTab(tabId, eventObject = null) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     
-    document.getElementById(tabId).classList.remove('hidden');
-    if (window.event && window.event.currentTarget) {
-        window.event.currentTarget.classList.add('active');
+    const targetTab = document.getElementById(tabId);
+    if (targetTab) targetTab.classList.remove('hidden');
+    
+    // Fallback logic context handling for cross-browser module triggers
+    const activeEvent = eventObject || window.event;
+    if (activeEvent && activeEvent.currentTarget) {
+        activeEvent.currentTarget.classList.add('active');
     }
 }
 
 async function initTeacherViews() {
-    const attendanceTableBody = document.getElementById('attendance-table-body');
-    const gradesTableBody = document.getElementById('grades-table-body');
-    
-    const selectedSemester = parseInt(document.getElementById('teacher-semester-select').value) || 4;
-    document.getElementById('attendance-date').value = new Date().toISOString().split('T')[0];
+    try {
+        const attendanceTableBody = document.getElementById('attendance-table-body');
+        const gradesTableBody = document.getElementById('grades-table-body');
+        const semesterSelect = document.getElementById('teacher-semester-select');
+        const attendanceDateInput = document.getElementById('attendance-date');
 
-    // Clear old structural rows
-    attendanceTableBody.innerHTML = '';
-    gradesTableBody.innerHTML = '';
-    currentAttendanceState = {};
+        // Check if HTML configuration fields are mapped correctly
+        if (!attendanceTableBody || !gradesTableBody || !semesterSelect || !attendanceDateInput) {
+            alert("Developer Error: One or more HTML element IDs are missing or mismatched in your DOM file layout structure.");
+            return;
+        }
+        
+        const selectedSemester = parseInt(semesterSelect.value) || 4;
+        attendanceDateInput.value = new Date().toISOString().split('T')[0];
 
-    // 1. Fetch all registered students from Cloud Users profile directory
-    const { data: students, error: studentErr } = await supabase
-        .from('users')
-        .select('id, name')
-        .eq('role', 'student');
+        attendanceTableBody.innerHTML = '';
+        gradesTableBody.innerHTML = '';
+        currentAttendanceState = {};
 
-    if (studentErr || !students) return;
+        // 1. Fetch all registered students
+        const { data: students, error: studentErr } = await supabase
+            .from('users')
+            .select('id, name')
+            .eq('role', 'student');
 
-    // 2. Fetch pre-existing grades for this course and workspace semester module
-    const { data: gradesList } = await supabase
-        .from('grades')
-        .select('*')
-        .eq('course_id', currentUser.course_id)
-        .eq('semester', selectedSemester);
+        if (studentErr) {
+            alert("Database Error fetching students: " + studentErr.message + "\nCheck if RLS SELECT policy is configured for your users table.");
+            return;
+        }
 
-    students.forEach(student => {
-        currentAttendanceState[student.id] = 'Present';
+        if (!students || students.length === 0) {
+            alert("No student records found in your database directory.");
+            return;
+        }
 
-        // Build Attendance UI Table Row
-        const attendanceRow = document.createElement('tr');
-        attendanceRow.innerHTML = `
-            <td>${student.id}</td>
-            <td>${student.name}</td>
-            <td>
-                <button type="button" class="btn btn-toggle active-present" id="p-${student.id}" onclick="setAttendanceStatus('${student.id}', 'Present')">Present</button>
-                <button type="button" class="btn btn-toggle" id="a-${student.id}" onclick="setAttendanceStatus('${student.id}', 'Absent')">Absent</button>
-            </td>
-        `;
-        attendanceTableBody.appendChild(attendanceRow);
+        // 2. Fetch pre-existing grades 
+        const { data: gradesList, error: gradesErr } = await supabase
+            .from('grades')
+            .select('*')
+            .eq('course_id', currentUser.course_id)
+            .eq('semester', selectedSemester);
 
-        // Find exact cloud grade record mapping to active student context
-        const exactGrade = (gradesList && gradesList.find(g => g.student_id === student.id)) || {
-            attendance: 0, assignment: 0, mid_exam: 0, final_exam: 0
-        };
+        if (gradesErr) {
+            alert("Database Error fetching grades: " + gradesErr.message + "\nCheck if RLS SELECT policy is configured for your grades table.");
+        }
 
-        const totalScore = calculateRowTotal(exactGrade);
+        students.forEach(student => {
+            currentAttendanceState[student.id] = 'Present';
 
-        // Build Grade Management UI Table Row
-        const gradeRow = document.createElement('tr');
-        gradeRow.innerHTML = `
-            <td>${student.id}</td>
-            <td>${student.name}</td>
-            <td><input type="number" min="0" max="10" value="${exactGrade.attendance || 0}" class="grade-input" data-sid="${student.id}" data-field="attendance" oninput="updateGradeTotalDisplay(this)"></td>
-            <td><input type="number" min="0" max="20" value="${exactGrade.assignment || 0}" class="grade-input" data-sid="${student.id}" data-field="assignment" oninput="updateGradeTotalDisplay(this)"></td>
-            <td><input type="number" min="0" max="20" value="${exactGrade.mid_exam || 0}" class="grade-input" data-sid="${student.id}" data-field="mid_exam" oninput="updateGradeTotalDisplay(this)"></td>
-            <td><input type="number" min="0" max="50" value="${exactGrade.final_exam || 0}" class="grade-input" data-sid="${student.id}" data-field="final_exam" oninput="updateGradeTotalDisplay(this)"></td>
-            <td><strong id="total-${student.id}">${totalScore}</strong>/100</td>
-        `;
-        gradesTableBody.appendChild(gradeRow);
-    });
+            // Build Attendance Row
+            const attendanceRow = document.createElement('tr');
+            attendanceRow.innerHTML = `
+                <td>${student.id}</td>
+                <td>${student.name}</td>
+                <td>
+                    <button type="button" class="btn btn-toggle active-present" id="p-${student.id}" onclick="setAttendanceStatus('${student.id}', 'Present')">Present</button>
+                    <button type="button" class="btn btn-toggle" id="a-${student.id}" onclick="setAttendanceStatus('${student.id}', 'Absent')">Absent</button>
+                </td>
+            `;
+            attendanceTableBody.appendChild(attendanceRow);
+
+            // Find matching grade matrix record
+            const exactGrade = (gradesList && gradesList.find(g => g.student_id === student.id)) || {
+                attendance: 0, assignment: 0, mid_exam: 0, final_exam: 0
+            };
+
+            const totalScore = calculateRowTotal(exactGrade);
+
+            // Build Grade Management UI Row
+            const gradeRow = document.createElement('tr');
+            gradeRow.innerHTML = `
+                <td>${student.id}</td>
+                <td>${student.name}</td>
+                <td><input type="number" min="0" max="10" value="${exactGrade.attendance || 0}" class="grade-input" data-sid="${student.id}" data-field="attendance" oninput="updateGradeTotalDisplay(this)"></td>
+                <td><input type="number" min="0" max="20" value="${exactGrade.assignment || 0}" class="grade-input" data-sid="${student.id}" data-field="assignment" oninput="updateGradeTotalDisplay(this)"></td>
+                <td><input type="number" min="0" max="20" value="${exactGrade.mid_exam || 0}" class="grade-input" data-sid="${student.id}" data-field="mid_exam" oninput="updateGradeTotalDisplay(this)"></td>
+                <td><input type="number" min="0" max="50" value="${exactGrade.final_exam || 0}" class="grade-input" data-sid="${student.id}" data-field="final_exam" oninput="updateGradeTotalDisplay(this)"></td>
+                <td><strong id="total-${student.id}">${totalScore}</strong>/100</td>
+            `;
+            gradesTableBody.appendChild(gradeRow);
+        });
+    } catch (err) {
+        console.error("Runtime view rendering crashed:", err);
+        alert("JavaScript Execution Error: " + err.message);
+    }
 }
 
 function setAttendanceStatus(studentId, status) {
@@ -163,15 +187,14 @@ function setAttendanceStatus(studentId, status) {
     const absentBtn = document.getElementById(`a-${studentId}`);
 
     if (status === 'Present') {
-        presentBtn.classList.add('active-present');
-        absentBtn.classList.remove('active-absent');
+        if(presentBtn) presentBtn.classList.add('active-present');
+        if(absentBtn) absentBtn.classList.remove('active-absent');
     } else {
-        absentBtn.classList.add('active-absent');
-        presentBtn.classList.remove('active-present');
+        if(absentBtn) absentBtn.classList.add('active-absent');
+        if(presentBtn) presentBtn.classList.remove('active-present');
     }
 }
 
-// Added safety parsing to prevent NaN display when fields are empty string values
 function calculateRowTotal(gradeObj) {
     return (Number(gradeObj.attendance) || 0) + 
            (Number(gradeObj.assignment) || 0) + 
@@ -186,7 +209,8 @@ function updateGradeTotalDisplay(inputElement) {
     rowInputs.forEach(input => {
         total += Number(input.value) || 0;
     });
-    document.getElementById(`total-${studentId}`).textContent = total;
+    const label = document.getElementById(`total-${studentId}`);
+    if (label) label.textContent = total;
 }
 
 // Save Attendance Event
@@ -199,7 +223,6 @@ document.getElementById('save-attendance-btn').addEventListener('click', async f
         return;
     }
 
-    // Clear matching daily duplicate entries if correcting errors
     await supabase
         .from('attendance_logs')
         .delete()
@@ -220,7 +243,7 @@ document.getElementById('save-attendance-btn').addEventListener('click', async f
     const { error } = await supabase.from('attendance_logs').insert(newLogs);
 
     if (error) {
-        alert("Error saving attendance to Cloud: " + error.message);
+        alert("Error saving attendance to Cloud: " + error.message + "\nEnsure you have configured INSERT/DELETE policies for attendance_logs.");
     } else {
         alert(`Attendance successfully stored for ${dateSelected}!`);
     }
@@ -229,8 +252,6 @@ document.getElementById('save-attendance-btn').addEventListener('click', async f
 // Save Grades Event
 document.getElementById('save-grades-btn').addEventListener('click', async function() {
     const selectedSemester = parseInt(document.getElementById('teacher-semester-select').value) || 4;
-    
-    // Extrapolate list of distinct student IDs present within current UI matrix view
     const studentIds = Array.from(new Set(Array.from(document.querySelectorAll('.grade-input')).map(i => i.getAttribute('data-sid'))));
     
     for (const studentId of studentIds) {
@@ -248,7 +269,6 @@ document.getElementById('save-grades-btn').addEventListener('click', async funct
             gradeData[field] = Number(input.value) || 0;
         });
 
-        // Check if grade configuration row instance exists to clean overwrite or add fresh
         const { data: existingGrade } = await supabase
             .from('grades')
             .select('id')
@@ -258,13 +278,15 @@ document.getElementById('save-grades-btn').addEventListener('click', async funct
             .maybeSingle();
 
         if (existingGrade) {
-            await supabase.from('grades').update(gradeData).eq('id', existingGrade.id);
+            const { error } = await supabase.from('grades').update(gradeData).eq('id', existingGrade.id);
+            if (error) console.error("Update error:", error);
         } else {
-            await supabase.from('grades').insert([gradeData]);
+            const { error } = await supabase.from('grades').insert([gradeData]);
+            if (error) console.error("Insert error:", error);
         }
     }
 
-    alert("Course marks and grades securely saved!");
+    alert("Course marks and grades processing complete!");
 });
 
 // ==========================================
@@ -272,9 +294,9 @@ document.getElementById('save-grades-btn').addEventListener('click', async funct
 // ==========================================
 async function initStudentViews() {
     const studentReportBody = document.getElementById('student-report-body');
+    if (!studentReportBody) return;
     studentReportBody.innerHTML = '';
 
-    // Fetch individual grade cards and cross-referenced logs mapped to target identity
     const { data: studentGrades } = await supabase.from('grades').select('*').eq('student_id', currentUser.id);
     const { data: studentLogs } = await supabase.from('attendance_logs').select('*').eq('student_id', currentUser.id);
 
@@ -329,8 +351,6 @@ function calculateGPAValue(score) {
 // ==========================================
 document.getElementById('reset-db-btn').addEventListener('click', async function() {
     if (confirm("Are you sure you want to reset the database back to default demo records?")) {
-        
-        // Execute reset procedure through secure backend RPC call
         const { error } = await supabase.rpc('secure_admin_reset_db', {
             admin_id: currentUser.id,
             admin_pass: currentUser.password
@@ -347,6 +367,7 @@ document.getElementById('reset-db-btn').addEventListener('click', async function
 
 async function initAdminViews() {
     const adminUsersTableBody = document.getElementById('admin-users-table-body');
+    if (!adminUsersTableBody) return;
     adminUsersTableBody.innerHTML = '';
 
     const { data: users } = await supabase.from('users').select('*');
@@ -403,7 +424,6 @@ document.getElementById('admin-add-user-form').addEventListener('submit', async 
     const cid = role === 'teacher' ? (document.getElementById('new-user-cid').value.trim() || "GEN101") : null;
     const cname = role === 'teacher' ? (document.getElementById('new-user-cname').value.trim() || "General Course") : null;
 
-    // Send the execution context to the secure database RPC pipeline
     const { error } = await supabase.rpc('secure_admin_add_user', {
         admin_id: currentUser.id,
         admin_pass: currentUser.password,
@@ -429,8 +449,6 @@ document.getElementById('admin-add-user-form').addEventListener('submit', async 
 
 async function deleteUser(userId) {
     if (confirm(`Are you sure you want to permanently delete user [${userId}]?`)) {
-        
-        // Execute deletions via secure RPC function wrapper context
         const { error } = await supabase.rpc('secure_admin_delete_user', {
             admin_id: currentUser.id,
             admin_pass: currentUser.password,
