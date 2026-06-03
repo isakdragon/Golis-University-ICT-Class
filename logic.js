@@ -55,11 +55,10 @@ document.getElementById('logout-btn').addEventListener('click', function() {
 });
 
 // ==========================================
-// VIEW ROUTING CONTROLLER (WITH CASE-INSENSITIVE SAFETY)
+// VIEW ROUTING CONTROLLER
 // ==========================================
 async function setupDashboardView() {
     try {
-        // Hide all dashboard modules initially
         document.querySelectorAll('.dashboard-view').forEach(view => view.classList.add('hidden'));
         
         const welcomeText = document.getElementById('welcome-text');
@@ -68,7 +67,6 @@ async function setupDashboardView() {
         if (welcomeText) welcomeText.textContent = `Welcome, ${currentUser.name}`;
         if (roleBadge) roleBadge.textContent = currentUser.role;
 
-        // Force lowercase conversion to solve 'Teacher' vs 'teacher' database spelling variations
         const normalizedRole = (currentUser.role || '').toLowerCase().trim();
 
         if (normalizedRole === 'admin') {
@@ -76,8 +74,6 @@ async function setupDashboardView() {
             if (adminDash) {
                 adminDash.classList.remove('hidden');
                 await initAdminViews(); 
-            } else {
-                alert("HTML Configuration Error: Could not find element id='admin-dashboard' in your layout file.");
             }
         } else if (normalizedRole === 'teacher') {
             const teacherDash = document.getElementById('teacher-dashboard');
@@ -90,23 +86,16 @@ async function setupDashboardView() {
                 }
                 
                 await initTeacherViews();
-            } else {
-                alert("HTML Configuration Error: Found user role 'teacher', but your HTML file is missing the dashboard section with id='teacher-dashboard'.");
             }
         } else if (normalizedRole === 'student') {
             const studentDash = document.getElementById('student-dashboard');
             if (studentDash) {
                 studentDash.classList.remove('hidden');
                 await initStudentViews();
-            } else {
-                alert("HTML Configuration Error: Could not find element id='student-dashboard' in your layout file.");
             }
-        } else {
-            alert(`Access Control Alert: The system verified your account but detected an unmapped role type: "${currentUser.role}"`);
         }
-    } catch (globalUIAssignmentError) {
-        console.error("Dashboard routing fatal runtime crash:", globalUIAssignmentError);
-        alert("Critical Dashboard Initialization Bug: " + globalUIAssignmentError.message + "\n\nCheck your HTML layout files to verify all expected IDs exist.");
+    } catch (err) {
+        console.error("Dashboard routing crashed:", err);
     }
 }
 
@@ -133,10 +122,7 @@ async function initTeacherViews() {
         const semesterSelect = document.getElementById('teacher-semester-select');
         const attendanceDateInput = document.getElementById('attendance-date');
 
-        if (!attendanceTableBody || !gradesTableBody || !semesterSelect || !attendanceDateInput) {
-            alert("DOM Configuration Mismatch: The Teacher dashboard structural elements (tables or input selectors) are missing from your HTML markup code.");
-            return;
-        }
+        if (!attendanceTableBody || !gradesTableBody || !semesterSelect || !attendanceDateInput) return;
         
         const selectedSemester = parseInt(semesterSelect.value) || 4;
         attendanceDateInput.value = new Date().toISOString().split('T')[0];
@@ -145,32 +131,18 @@ async function initTeacherViews() {
         gradesTableBody.innerHTML = '';
         currentAttendanceState = {};
 
-        // 1. Fetch all registered students
         const { data: students, error: studentErr } = await supabase
             .from('users')
             .select('id, name')
             .eq('role', 'student');
 
-        if (studentErr) {
-            alert("Database Connection Restrained: " + studentErr.message + "\n\nMake sure your Supabase Policy allows public reads (SELECT) on the 'users' table.");
-            return;
-        }
+        if (studentErr || !students || students.length === 0) return;
 
-        if (!students || students.length === 0) {
-            alert("Data Empty: There are no student records stored in your users table database right now.");
-            return;
-        }
-
-        // 2. Fetch pre-existing grades 
-        const { data: gradesList, error: gradesErr } = await supabase
+        const { data: gradesList } = await supabase
             .from('grades')
             .select('*')
             .eq('course_id', currentUser.course_id)
             .eq('semester', selectedSemester);
-
-        if (gradesErr) {
-            alert("Database Connection Restrained: " + gradesErr.message + "\n\nMake sure your Supabase Policy allows public reads (SELECT) on the 'grades' table.");
-        }
 
         students.forEach(student => {
             currentAttendanceState[student.id] = 'Present';
@@ -206,7 +178,6 @@ async function initTeacherViews() {
         });
     } catch (err) {
         console.error("Runtime view rendering crashed:", err);
-        alert("JavaScript Execution Exception inside initTeacherViews(): " + err.message);
     }
 }
 
@@ -242,7 +213,9 @@ function updateGradeTotalDisplay(inputElement) {
     if (label) label.textContent = total;
 }
 
-// Save Attendance Event
+// ==========================================
+// TEACHER SECURE RPC SAVES
+// ==========================================
 document.getElementById('save-attendance-btn').addEventListener('click', async function() {
     const dateSelected = document.getElementById('attendance-date').value;
     const selectedSemester = parseInt(document.getElementById('teacher-semester-select').value) || 4;
@@ -252,70 +225,64 @@ document.getElementById('save-attendance-btn').addEventListener('click', async f
         return;
     }
 
-    await supabase
-        .from('attendance_logs')
-        .delete()
-        .eq('date', dateSelected)
-        .eq('course_id', currentUser.course_id);
-
+    // Bundle all attendance status selections into an array
     const newLogs = [];
     for (let studentId in currentAttendanceState) {
         newLogs.push({
-            date: dateSelected,
-            course_id: currentUser.course_id,
             student_id: studentId,
-            status: currentAttendanceState[studentId],
-            semester: selectedSemester
+            status: currentAttendanceState[studentId]
         });
     }
 
-    const { error } = await supabase.from('attendance_logs').insert(newLogs);
+    // Call the secure backend function
+    const { error } = await supabase.rpc('secure_teacher_save_attendance', {
+        teacher_id: currentUser.id,
+        teacher_pass: currentUser.password,
+        p_date: dateSelected,
+        p_course_id: currentUser.course_id,
+        p_semester: selectedSemester,
+        log_data: newLogs
+    });
 
     if (error) {
-        alert("Error saving attendance to Cloud: " + error.message + "\nEnsure you have configured INSERT/DELETE policies for attendance_logs.");
+        alert("Error saving attendance: " + error.message);
     } else {
         alert(`Attendance successfully stored for ${dateSelected}!`);
     }
 });
 
-// Save Grades Event
 document.getElementById('save-grades-btn').addEventListener('click', async function() {
     const selectedSemester = parseInt(document.getElementById('teacher-semester-select').value) || 4;
     const studentIds = Array.from(new Set(Array.from(document.querySelectorAll('.grade-input')).map(i => i.getAttribute('data-sid'))));
     
+    // Bundle all grades into an array
+    const gradesArray = [];
     for (const studentId of studentIds) {
         const rowInputs = document.querySelectorAll(`.grade-input[data-sid="${studentId}"]`);
-        
-        let gradeData = {
-            student_id: studentId,
-            course_id: currentUser.course_id,
-            course_name: currentUser.course_name,
-            semester: selectedSemester
-        };
+        let gradeObj = { student_id: studentId };
 
         rowInputs.forEach(input => {
             const field = input.getAttribute('data-field'); 
-            gradeData[field] = Number(input.value) || 0;
+            gradeObj[field] = Number(input.value) || 0;
         });
-
-        const { data: existingGrade } = await supabase
-            .from('grades')
-            .select('id')
-            .eq('student_id', studentId)
-            .eq('course_id', currentUser.course_id)
-            .eq('semester', selectedSemester)
-            .maybeSingle();
-
-        if (existingGrade) {
-            const { error } = await supabase.from('grades').update(gradeData).eq('id', existingGrade.id);
-            if (error) console.error("Update error:", error);
-        } else {
-            const { error } = await supabase.from('grades').insert([gradeData]);
-            if (error) console.error("Insert error:", error);
-        }
+        gradesArray.push(gradeObj);
     }
 
-    alert("Course marks and grades processing complete!");
+    // Call the secure backend function
+    const { error } = await supabase.rpc('secure_teacher_save_grades', {
+        teacher_id: currentUser.id,
+        teacher_pass: currentUser.password,
+        p_course_id: currentUser.course_id,
+        p_course_name: currentUser.course_name,
+        p_semester: selectedSemester,
+        grade_data: gradesArray
+    });
+
+    if (error) {
+        alert("Error saving grades: " + error.message);
+    } else {
+        alert("Course marks and grades securely saved!");
+    }
 });
 
 // ==========================================
