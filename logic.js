@@ -135,12 +135,11 @@ window.initTeacherViews = async function() {
             .eq('course_id', currentUser.course_id)
             .eq('semester', selectedSemester);
 
-        // --- NEW: Fetch attendance logs so the teacher can see the student's records ---
+        // --- Fetch attendance logs so the teacher can see the student's records ---
         const { data: courseLogs } = await supabase
             .from('attendance_logs')
             .select('*')
             .eq('course_id', currentUser.course_id);
-        // -------------------------------------------------------------------------------
 
         students.forEach(student => {
             currentAttendanceState[student.id] = 'Present';
@@ -162,12 +161,11 @@ window.initTeacherViews = async function() {
 
             const totalScore = calculateRowTotal(exactGrade);
 
-            // --- NEW: Calculate the present/absent string for the grades table ---
+            // --- Calculate the present/absent string for the grades table ---
             const studentCourseLogs = courseLogs ? courseLogs.filter(l => l.student_id === student.id && (!l.semester || l.semester === selectedSemester)) : [];
             const totalP = studentCourseLogs.filter(l => l.status === 'Present').length;
             const totalA = studentCourseLogs.filter(l => l.status === 'Absent').length;
             const recordStr = `<span style="color:green; font-weight:600;">P: ${totalP}</span> | <span style="color:red; font-weight:600;">A: ${totalA}</span>`;
-            // ---------------------------------------------------------------------
 
             const gradeRow = document.createElement('tr');
             gradeRow.innerHTML = `
@@ -248,7 +246,7 @@ document.getElementById('save-attendance-btn').addEventListener('click', async f
         alert("Error saving attendance: " + error.message);
     } else {
         alert(`Attendance successfully stored for ${dateSelected}!`);
-        initTeacherViews(); // Refresh view so the new logs appear immediately in the record column
+        initTeacherViews(); 
     }
 });
 
@@ -338,21 +336,65 @@ function calculateGPAValue(score) {
     return 0.00;
 }
 
-document.getElementById('reset-db-btn').addEventListener('click', async function() {
-    if (confirm("Are you sure you want to reset the database back to default demo records?")) {
-        const { error } = await supabase.rpc('secure_admin_reset_db', {
-            admin_id: currentUser.id,
-            admin_pass: currentUser.password
-        });
+// =================================================
+// MODAL-BASED SECURE BACKEND DEMO SYSTEM RESET
+// =================================================
+const resetBtn = document.getElementById('reset-db-btn');
+const resetModal = document.getElementById('resetModal');
+const cancelResetBtn = document.getElementById('cancelResetBtn');
+const confirmResetBtn = document.getElementById('confirmResetBtn');
+const passwordInput = document.getElementById('adminResetPassword');
 
-        if (error) {
-            alert("Error resetting database: " + error.message);
-        } else {
-            alert("Cloud Database successfully wiped and reset to default data items.");
-            location.reload();
+if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+        if (resetModal) {
+            resetModal.style.display = 'flex';
+            if (passwordInput) passwordInput.value = '';
         }
-    }
-});
+    });
+}
+
+if (cancelResetBtn) {
+    cancelResetBtn.addEventListener('click', () => {
+        if (resetModal) resetModal.style.display = 'none';
+    });
+}
+
+if (confirmResetBtn) {
+    confirmResetBtn.addEventListener('click', async () => {
+        const enteredPassword = passwordInput ? passwordInput.value : '';
+
+        if (!enteredPassword) {
+            alert("Please enter a password.");
+            return;
+        }
+
+        confirmResetBtn.disabled = true;
+        confirmResetBtn.textContent = "Resetting...";
+
+        try {
+            // Invokes the server-side PostgreSQL function safely hidden away on Supabase
+            const { data, error } = await supabase.rpc('reset_system_to_demo', {
+                entered_password: enteredPassword
+            });
+
+            if (error) {
+                alert(`Reset Failed: ${error.message}`);
+                if (passwordInput) passwordInput.value = '';
+            } else if (data === true) {
+                alert("System successfully reset to demo defaults!");
+                if (resetModal) resetModal.style.display = 'none';
+                window.location.reload(); 
+            }
+        } catch (err) {
+            console.error("Unexpected error during database reset execution:", err);
+            alert("An unexpected error occurred during reset.");
+        } finally {
+            confirmResetBtn.disabled = false;
+            confirmResetBtn.textContent = "Confirm Reset";
+        }
+    });
+}
 
 async function initAdminViews() {
     const adminUsersTableBody = document.getElementById('admin-users-table-body');
