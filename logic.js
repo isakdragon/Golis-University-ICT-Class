@@ -93,7 +93,7 @@ async function setupDashboardView() {
     }
 }
 
-function switchTeacherTab(tabId, eventObject = null) {
+window.switchTeacherTab = function(tabId, eventObject = null) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     
@@ -106,7 +106,7 @@ function switchTeacherTab(tabId, eventObject = null) {
     }
 }
 
-async function initTeacherViews() {
+window.initTeacherViews = async function() {
     try {
         const attendanceTableBody = document.getElementById('attendance-table-body');
         const gradesTableBody = document.getElementById('grades-table-body');
@@ -135,6 +135,13 @@ async function initTeacherViews() {
             .eq('course_id', currentUser.course_id)
             .eq('semester', selectedSemester);
 
+        // --- NEW: Fetch attendance logs so the teacher can see the student's records ---
+        const { data: courseLogs } = await supabase
+            .from('attendance_logs')
+            .select('*')
+            .eq('course_id', currentUser.course_id);
+        // -------------------------------------------------------------------------------
+
         students.forEach(student => {
             currentAttendanceState[student.id] = 'Present';
 
@@ -155,11 +162,18 @@ async function initTeacherViews() {
 
             const totalScore = calculateRowTotal(exactGrade);
 
+            // --- NEW: Calculate the present/absent string for the grades table ---
+            const studentCourseLogs = courseLogs ? courseLogs.filter(l => l.student_id === student.id && (!l.semester || l.semester === selectedSemester)) : [];
+            const totalP = studentCourseLogs.filter(l => l.status === 'Present').length;
+            const totalA = studentCourseLogs.filter(l => l.status === 'Absent').length;
+            const recordStr = `<span style="color:green; font-weight:600;">P: ${totalP}</span> | <span style="color:red; font-weight:600;">A: ${totalA}</span>`;
+            // ---------------------------------------------------------------------
+
             const gradeRow = document.createElement('tr');
             gradeRow.innerHTML = `
                 <td>${student.id}</td>
                 <td>${student.name}</td>
-                <td><input type="number" min="0" max="10" value="${exactGrade.attendance || 0}" class="grade-input" data-sid="${student.id}" data-field="attendance" oninput="updateGradeTotalDisplay(this)"></td>
+                <td>${recordStr}</td> <td><input type="number" min="0" max="10" value="${exactGrade.attendance || 0}" class="grade-input" data-sid="${student.id}" data-field="attendance" oninput="updateGradeTotalDisplay(this)"></td>
                 <td><input type="number" min="0" max="20" value="${exactGrade.assignment || 0}" class="grade-input" data-sid="${student.id}" data-field="assignment" oninput="updateGradeTotalDisplay(this)"></td>
                 <td><input type="number" min="0" max="20" value="${exactGrade.mid_exam || 0}" class="grade-input" data-sid="${student.id}" data-field="mid_exam" oninput="updateGradeTotalDisplay(this)"></td>
                 <td><input type="number" min="0" max="50" value="${exactGrade.final_exam || 0}" class="grade-input" data-sid="${student.id}" data-field="final_exam" oninput="updateGradeTotalDisplay(this)"></td>
@@ -172,7 +186,7 @@ async function initTeacherViews() {
     }
 }
 
-function setAttendanceStatus(studentId, status) {
+window.setAttendanceStatus = function(studentId, status) {
     currentAttendanceState[studentId] = status;
     const presentBtn = document.getElementById(`p-${studentId}`);
     const absentBtn = document.getElementById(`a-${studentId}`);
@@ -193,7 +207,7 @@ function calculateRowTotal(gradeObj) {
            (Number(gradeObj.final_exam || gradeObj.finalExam) || 0);
 }
 
-function updateGradeTotalDisplay(inputElement) {
+window.updateGradeTotalDisplay = function(inputElement) {
     const studentId = inputElement.getAttribute('data-sid');
     const rowInputs = document.querySelectorAll(`.grade-input[data-sid="${studentId}"]`);
     let total = 0;
@@ -234,6 +248,7 @@ document.getElementById('save-attendance-btn').addEventListener('click', async f
         alert("Error saving attendance: " + error.message);
     } else {
         alert(`Attendance successfully stored for ${dateSelected}!`);
+        initTeacherViews(); // Refresh view so the new logs appear immediately in the record column
     }
 });
 
@@ -367,7 +382,7 @@ async function initAdminViews() {
     }
 }
 
-function toggleAdminCourseFields() {
+window.toggleAdminCourseFields = function() {
     const roleSelected = document.getElementById('new-user-role').value;
     const courseFields = document.getElementById('admin-course-fields');
     if (roleSelected === 'teacher') {
@@ -391,56 +406,27 @@ document.getElementById('admin-add-user-form').addEventListener('submit', async 
         .maybeSingle();
 
     if (existingUser) {
-        alert("A user with this matching identification key already exists!");
+        alert("This User ID already exists in the system.");
         return;
     }
 
-    const cid = role === 'teacher' ? (document.getElementById('new-user-cid').value.trim() || "GEN101") : null;
-    const cname = role === 'teacher' ? (document.getElementById('new-user-cname').value.trim() || "General Course") : null;
+    const courseId = role === 'teacher' ? document.getElementById('new-user-cid').value : null;
+    const courseName = role === 'teacher' ? document.getElementById('new-user-cname').value : null;
 
-    const { error } = await supabase.rpc('secure_admin_add_user', {
-        admin_id: currentUser.id,
-        admin_pass: currentUser.password,
-        new_id: id,
-        new_name: name,
-        new_pass: password,
-        new_role: role,
-        new_cid: cid,
-        new_cname: cname
-    });
+    const { error } = await supabase.from('users').insert([{
+        id: id,
+        name: name,
+        password: password,
+        role: role,
+        course_id: courseId,
+        course_name: courseName
+    }]);
 
     if (error) {
-        alert("Error creating record: " + error.message);
-        return;
+        alert("Database error: " + error.message);
+    } else {
+        alert("User account successfully created.");
+        document.getElementById('admin-add-user-form').reset();
+        initAdminViews();
     }
-
-    await initAdminViews();
-    
-    document.getElementById('admin-add-user-form').reset();
-    toggleAdminCourseFields();
-    alert(`Account for ${name} successfully initialized!`);
 });
-
-async function deleteUser(userId) {
-    if (confirm(`Are you sure you want to permanently delete user [${userId}]?`)) {
-        const { error } = await supabase.rpc('secure_admin_delete_user', {
-            admin_id: currentUser.id,
-            admin_pass: currentUser.password,
-            target_user_id: userId
-        });
-
-        if (error) {
-            alert("Error deleting user: " + error.message);
-        } else {
-            await initAdminViews();
-            alert("User completely removed from system database storage.");
-        }
-    }
-}
-
-window.toggleAdminCourseFields = toggleAdminCourseFields;
-window.deleteUser = deleteUser;
-window.setAttendanceStatus = setAttendanceStatus;
-window.switchTeacherTab = switchTeacherTab;
-window.initTeacherViews = initTeacherViews;
-window.updateGradeTotalDisplay = updateGradeTotalDisplay;
