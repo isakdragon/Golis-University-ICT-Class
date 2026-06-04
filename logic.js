@@ -472,3 +472,36 @@ document.getElementById('admin-add-user-form').addEventListener('submit', async 
         initAdminViews();
     }
 });
+
+// =================================================
+// SECURE USER DELETION MANAGEMENT
+// =================================================
+window.deleteUser = async function(userId) {
+    // 1. Prevent accidental clicks
+    if (!confirm(`Are you sure you want to permanently delete user ID: ${userId}?`)) {
+        return;
+    }
+
+    try {
+        // 2. Delete the user row from the Supabase 'users' table
+        const { error } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', userId);
+
+        if (error) {
+            // Catches foreign key errors (e.g., if the user has active grades or logs)
+            alert(`Could not delete user: ${error.message}`);
+            return;
+        }
+
+        alert("User account successfully removed.");
+        
+        // 3. Instantly refresh the admin table layout
+        await initAdminViews();
+        
+    } catch (err) {
+        console.error("Critical error during deletion routing:", err);
+        alert("An unexpected error occurred while deleting the user.");
+    }
+};
