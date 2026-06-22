@@ -168,6 +168,23 @@ header {
     min-width: 600px; 
 }
 
+.data-table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.data-table tbody tr:hover {
+    background-color: #f3f4f6;
+}
+
+/* Make inputs look a bit cleaner inside the table */
+.data-table input[type="number"] {
+    width: 70px;
+    padding: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    text-align: center;
+}
+
 .data-table th, .data-table td {
     border: 1px solid var(--border-color);
     padding: 12px;
