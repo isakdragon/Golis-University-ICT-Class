@@ -121,7 +121,7 @@ input:focus, select:focus {
 
 #app-container {
     width: 100%;
-    max-width: 1200px;
+    max-width: 1100px;
 }
 
 header {
@@ -145,12 +145,32 @@ header {
     margin-top: 4px;
 }
 
+.tabs {
+    margin: 20px 0;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 16px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #6b7280;
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
 .data-table {
     width: 100%;
     border-collapse: collapse;
     margin: 15px 0;
     background: white;
-    min-width: 900px;
+    min-width: 600px;
 }
 
 .data-table th, .data-table td {
@@ -165,8 +185,8 @@ header {
 }
 
 .data-table input[type="number"] {
-    width: 75px;
-    padding: 6px;
+    width: 70px;
+    padding: 4px;
 }
 
 .gpa-container {
@@ -201,7 +221,9 @@ header {
     gap: 15px;
     align-items: flex-end;
 }
-.mb-0 { margin-bottom: 0; }
+.mb-0 {
+    margin-bottom: 0;
+}
 .admin-course-wrapper {
     margin-bottom: 0;
     flex-direction: row;
@@ -218,7 +240,6 @@ header {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
@@ -235,41 +256,60 @@ header {
 }
 
 @media (max-width: 768px) {
-    body { padding: 10px; }
-    header { flex-direction: column; align-items: flex-start; gap: 15px; }
-    #logout-btn { width: 100%; }
-    .form-group.inline-form { flex-direction: column; align-items: stretch; }
-    .admin-form { flex-direction: column; align-items: stretch; }
-    .admin-course-wrapper { flex-direction: column; gap: 15px; }
-}
+    body {
+        padding: 10px;
+    }
 
-/* Keep your existing styles untouched, and append these rules */
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
 
-.form-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-bottom: 15px;
-}
+    #logout-btn {
+        width: 100%;
+    }
 
-.form-row .form-group {
-    flex: 1;
-    min-width: 200px;
-    margin-bottom: 0;
-}
+    .form-group.inline-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
 
-.grades-input-row {
-    background: #f9fafb;
-    padding: 15px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-}
+    .form-group.inline-form input,
+    .form-group.inline-form select {
+        width: 100%;
+    }
 
-.grades-input-row .form-group {
-    min-width: 120px;
-}
+    .admin-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
 
-.admin-grade-form {
-    display: flex;
-    flex-direction: column;
+    .admin-course-wrapper {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .admin-form .btn {
+        margin-top: 10px;
+    }
+
+    .tabs {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .tab-btn {
+        width: 100%;
+        border-bottom: none;
+        border-left: 2px solid transparent;
+        text-align: left;
+    }
+
+    .tab-btn.active {
+        border-bottom: none;
+        border-left-color: var(--primary-color);
+        background-color: #f3f4f6;
+    }
 }
