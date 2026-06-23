@@ -242,3 +242,34 @@ header {
     .admin-form { flex-direction: column; align-items: stretch; }
     .admin-course-wrapper { flex-direction: column; gap: 15px; }
 }
+
+/* Keep your existing styles untouched, and append these rules */
+
+.form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.form-row .form-group {
+    flex: 1;
+    min-width: 200px;
+    margin-bottom: 0;
+}
+
+.grades-input-row {
+    background: #f9fafb;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.grades-input-row .form-group {
+    min-width: 120px;
+}
+
+.admin-grade-form {
+    display: flex;
+    flex-direction: column;
+}
